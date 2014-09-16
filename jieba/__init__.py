@@ -17,6 +17,7 @@ import logging
 
 DICTIONARY = "dict.txt"
 DICT_LOCK = threading.RLock()
+dict_set = set()
 trie = None # to be initialized
 FREQ = {}
 min_freq = 0.0
@@ -37,6 +38,7 @@ def setLogLevel(log_level):
 def gen_trie(f_name):
     lfreq = {}
     trie = {}
+    dict_set = set()
     ltotal = 0.0
     with open(f_name, 'rb') as f:
         lineno = 0
@@ -48,6 +50,7 @@ def gen_trie(f_name):
                 lfreq[word] = freq
                 ltotal+=freq
                 p = trie
+                dict_set.add(word)
                 for c in word:
                     if c not in p:
                         p[c] ={}
@@ -56,10 +59,11 @@ def gen_trie(f_name):
             except ValueError, e:
                 logger.debug('%s at line %s %s' % (f_name,  lineno, line))
                 raise ValueError, e
-    return trie, lfreq,ltotal
+    return trie, lfreq,ltotal, dict_set
+
 
 def initialize(*args):
-    global trie, FREQ, total, min_freq, initialized
+    global trie, FREQ, total, min_freq, initialized, dict_set
     if len(args)==0:
         dictionary = DICTIONARY
     else:
@@ -90,7 +94,7 @@ def initialize(*args):
                 load_from_cache_fail = True
 
         if load_from_cache_fail:
-            trie,FREQ,total = gen_trie(abs_path)
+            trie,FREQ,total,dict_set = gen_trie(abs_path)
             FREQ = dict([(k,log(float(v)/total)) for k,v in FREQ.iteritems()]) #normalize
             min_freq = min(FREQ.itervalues())
             logger.debug("dumping model to file cache %s" % cache_file)
@@ -274,17 +278,18 @@ def cut(sentence,cut_all=False,HMM=True):
             continue
         if re_han.match(blk):
             for word in cut_block(blk):
-                yield word
-        else:
-            tmp = re_skip.split(blk)
-            for x in tmp:
-                if re_skip.match(x):
-                    yield x
-                elif not cut_all:
-                    for xx in x:
-                        yield xx
-                else:
-                    yield x
+                if word in dict_set:
+                    yield word
+        # else:
+        #     tmp = re_skip.split(blk)
+        #     for x in tmp:
+        #         if re_skip.match(x):
+        #             yield x
+        #         elif not cut_all:
+        #             for xx in x:
+        #                 yield xx
+        #         else:
+        #             yield x
 
 def cut_for_search(sentence,HMM=True):
     words = cut(sentence,HMM=HMM)
